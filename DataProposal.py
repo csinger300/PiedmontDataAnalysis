@@ -107,7 +107,7 @@ for x in range(len(timestamps)):
     checkout = datetime.datetime.combine(datetime.date(int(date.split("/")[2]), int(date.split("/")[0]), int(date.split("/")[1])), checkout)
 
     # get rid of incorrect time stamps
-    if (interviewstart < checkin) or (checkout < interviewstart) or (interviewend < interviewstart): 
+    if (interviewstart < checkin) or (checkout < interviewstart) or (interviewend <= interviewstart): 
         # print(timestamps.loc[x])
         timestamps = timestamps.drop([x])
         removed_list.append(x)
@@ -150,7 +150,7 @@ for x in range(len(timestamps)):
 timestamps = timestamps.reset_index(drop=True)
 # print(timestamps.head(50))
 timestamps = timestamps.drop(['Check Out Time'], axis=1)
-timestamps.to_excel (r'C:\Users\csing\Documents\GitHub\PiedmontDataAnalysis\PAT_timestamps_edit.xlsx', index = False, header=True)
+# timestamps.to_excel (r'C:\Users\csing\Documents\GitHub\PiedmontDataAnalysis\PAT_timestamps_edit.xlsx', index = False, header=True)
 
 
         
@@ -182,10 +182,19 @@ print("Percentage of PAT appts under 60 minutes in 2021: "
         / data.loc[data["Appt Meeting 60min Goal?"] == "No"]['Surgery Case'].count() * 100, 3)) + "%")
 
 ######## Cycle Time Analysis
-
 print("Average Cycle Time for 2021 is: ", round(data["Avg. Cycle Time Minutes"].mean(), 3))
 print("Min Cycle Time was: ", data["Avg. Cycle Time Minutes"].min())
 print("Max Cycle Time was: ", data["Avg. Cycle Time Minutes"].max())
+
+######## Appt Time analysis
+print("Average Appointment Time for 2021 is: ", round(data["Avg. Time In Room Minutes"].mean(), 3))
+print("Min Appt Time was: ", data["Avg. Time In Room Minutes"].min())
+print("Max Appt Time was: ", data["Avg. Time In Room Minutes"].max())
+
+######## Wait Time analysis
+print("Average Wait Time for 2021 is: ", round(data["Avg. Time To Room Minutes"].mean(), 3))
+print("Min Wait Time was: ", data["Avg. Time To Room Minutes"].min())
+print("Max Wait Time was: ", data["Avg. Time To Room Minutes"].max())
 
 # print(removed_list)
 # print(len(removed_list))
