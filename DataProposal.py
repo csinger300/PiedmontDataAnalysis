@@ -4,7 +4,7 @@ import math
 import numpy as np
 import datetime
 
-timestamps = pd.read_excel("PAT Time Stamps.xlsx")
+timestamps = pd.read_excel("PAT appts with scheduling date added.xlsx")
 
 ########################## PAT TIME STAMPS
 
@@ -36,16 +36,22 @@ timestamps = timestamps.reset_index(drop=True)
 
 timestamps["AM or PM Start"] = "AM"
 timestamps["Appt Date"] = 0
+timestamps['Appt Time'] = 0
 for x in range(len(timestamps["Surgery Case"])):
     # standardizing surgery types
     timestamps["Surgery Case"][x] = timestamps["Surgery Case"][x].split(",")[0]
     
     # appt date and start time
-    timestamps["Appt Date"][x] = timestamps["Check In Time"][x].split(" ")[0]
+    timestamps["Appt Date"][x] = timestamps["Appointment DTS"][x].split(" ")[0]
+    timestamps['Appt Time'][x] = timestamps["Appointment DTS"][x].split(" ")[1]
     if (timestamps["Check In Time"][x].split(" ")[2] == "PM"):
         timestamps["AM or PM Start"][x] = "PM"
     timestamps["Check In Time"][x] = timestamps["Check In Time"][x].split(" ")[1]
-    
+
+    # Chart received time
+    chartstart = timestamps["Patient Chart Received"][x].split(" ")[2]
+    timestamps["Patient Chart Received"][x] = timestamps["Patient Chart Received"][x].split(" ")[1]
+
     # interview start time
     intstart = timestamps["Patient Interview Started Time"][x].split(" ")[2]
     timestamps["Patient Interview Started Time"][x] = timestamps["Patient Interview Started Time"][x].split(" ")[1]
@@ -59,15 +65,16 @@ for x in range(len(timestamps["Surgery Case"])):
     timestamps["Check Out Time"][x] = timestamps["Check Out Time"][x].split(" ")[1]
 
     # converting everything to military standard time
+    # print(timestamps["Appt Time"][x])
+    # print(timestamps["Appointment DTS"][x][2])
+    timestamps["Appt Time"][x] = militarytime_convert(timestamps["Appt Time"][x], timestamps["Appointment DTS"][x].split(" ")[2])
     timestamps["Check In Time"][x] = militarytime_convert(timestamps["Check In Time"][x], timestamps["AM or PM Start"][x])
+    timestamps["Patient Chart Received"][x] = militarytime_convert(timestamps["Patient Chart Received"][x], chartstart)
     timestamps["Patient Interview Started Time"][x] = militarytime_convert(timestamps["Patient Interview Started Time"][x], intstart)
     timestamps["Patient Interview Completed Time"][x] = militarytime_convert(timestamps["Patient Interview Completed Time"][x], intcomplete)
     timestamps["Check Out Time"][x] = militarytime_convert(timestamps["Check Out Time"][x], checkout)
 
-
 timestamps['Weekday'] = pd.to_datetime(timestamps['Appt Date'], format="%m/%d/%Y").dt.day_name()
-
-# print(timestamps.head())
 
 # timestamps.to_excel (r'C:\Users\csing\Documents\GitHub\PiedmontDataAnalysis\PAT_timestamps.xlsx', index = False, header=True)
 
@@ -77,11 +84,17 @@ timestamps = pd.read_excel("PAT_timestamps.xlsx")
 timestamps["Avg. Time To Room Minutes"] = 0
 timestamps["Avg. Time In Room Minutes"] = 0
 timestamps["Avg. Cycle Time Minutes"] = 0
+timestamps["Patient Late"] = "No"
+timestamps["Walk-in"] = "No"
 
 ######## Filling in the new columns with correct values
 removed_list = []
 for x in range(len(timestamps)):
     # collecting the times and date
+    appttime = datetime.time(int(timestamps.loc[x, "Appt Time"].split(":")[0]), 
+        int(timestamps.loc[x, "Appt Time"].split(":")[1]), 
+        int(timestamps.loc[x, "Appt Time"].split(":")[2]))
+
     checkin = datetime.time(int(timestamps.loc[x, "Check In Time"].split(":")[0]), 
         int(timestamps.loc[x, "Check In Time"].split(":")[1]), 
         int(timestamps.loc[x, "Check In Time"].split(":")[2]))
@@ -101,6 +114,7 @@ for x in range(len(timestamps)):
     date = timestamps.loc[x, "Appt Date"]
 
     #creating combine objects 
+    appttime = datetime.datetime.combine(datetime.date(int(date.split("/")[2]), int(date.split("/")[0]), int(date.split("/")[1])), appttime)
     checkin = datetime.datetime.combine(datetime.date(int(date.split("/")[2]), int(date.split("/")[0]), int(date.split("/")[1])), checkin)
     interviewstart = datetime.datetime.combine(datetime.date(int(date.split("/")[2]), int(date.split("/")[0]), int(date.split("/")[1])), interviewstart)
     interviewend = datetime.datetime.combine(datetime.date(int(date.split("/")[2]), int(date.split("/")[0]), int(date.split("/")[1])), interviewend)
@@ -146,16 +160,37 @@ for x in range(len(timestamps)):
     timestamps.loc[x, "Avg. Time To Room Minutes"] = round(avgwaittime, 3)
     timestamps.loc[x, "Avg. Time In Room Minutes"] = round(avgappt, 3)
     timestamps.loc[x, "Avg. Cycle Time Minutes"] = round(avgcycletime, 3)
+
+    # Walk in fill in
+    if timestamps["Appt Date"][x] == timestamps["Appointment Scheduled DS"][x]:
+        timestamps.loc[x, "Walk-in"] = "Yes"
+
+    # Late to arrive fill in
+    if checkin > appttime:
+        timestamps.loc[x, "Patient Late"] = "Yes"
     
 timestamps = timestamps.reset_index(drop=True)
-# print(timestamps.head(50))
+
 timestamps = timestamps.drop(['Check Out Time'], axis=1)
+timestamps = timestamps.drop(['Appointment DTS'], axis=1)
+timestamps = timestamps.reindex(['Surgery Case','Appointment Scheduled DS','Appt Date', 'Appt Time', 'Weekday', 
+    'AM or PM Start', 'Check In Time', 'Patient Chart Received', 'Patient Interview Started Time', 
+    'Patient Interview Completed Time', 'Avg. Time To Room Minutes', 'Avg. Time In Room Minutes',
+    'Avg. Cycle Time Minutes', 'My Chart Status NM', 'Walk-in', 'Patient Late'], axis=1)
 # timestamps.to_excel (r'C:\Users\csing\Documents\GitHub\PiedmontDataAnalysis\PAT_timestamps_edit.xlsx', index = False, header=True)
 
 
         
 ########################## AGGREGATE RESULTS
 data = pd.read_excel("PAT_timestamps_edit.xlsx")
+# print(data.head())
+# walkin = []
+# for x in range(len(data)):
+#     if data["Appt Date"][x] == data["Appointment Scheduled DS"][x]:
+#         walkin.append(x)
+#         # print(timestamps.loc[x])
+# print(walkin)
+# print(len(walkin))
 
 ######## Print the 10 surgery types with highest average PAT cycle times
 worst10Cycles = data.groupby(["Surgery Case"]).agg({'Avg. Cycle Time Minutes': ['mean'], 'Surgery Case': ['count']}).sort_values(('Avg. Cycle Time Minutes', 'mean'), ascending=False).head(10)
@@ -169,7 +204,7 @@ print("The 10 Best Cycle Times by Surgery Type are: ", top10Cycles)
 mostPerformed = data.groupby(["Surgery Case"]).agg({'Avg. Cycle Time Minutes': ['mean'], 'Surgery Case': ['count']}).sort_values(('Surgery Case', 'count'), ascending=False).head(10)
 print("The 10 Most Performed Surgeries Last Year Were: ", mostPerformed)
 
-######## % of total PAT appts under 60min
+####### % of total PAT appts under 60min
 data['Appt Meeting 60min Goal?'] = "No"
 for entry in range(len(data)):
     if data['Avg. Cycle Time Minutes'][entry] <= 60:
